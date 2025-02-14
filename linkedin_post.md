@@ -10,7 +10,7 @@ I've been exploring how to make language model training accessible on modest GPU
 🛠️ Technical Details:
 - Model: 12-layer transformer with 768 embedding dimension
 - Memory Usage: ~3.5GB VRAM peak
-- Training Time: 8-10 hours on GTX 1650
+- Training Time: 4 hours on GTX 1650
 - Dataset: Wikitext-2
 
 ⚡ Optimizations Implemented:

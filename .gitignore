@@ -45,9 +45,11 @@ ENV/
 *.pth
 *.ckpt
 checkpoint*/
-runs/
-wandb/
-lora_adapter/
+checkpoint_epoch_*.pt
+
+# Project specific
+linkedin_post.md
+checkpoint_*/
 
 # Dataset
 data/
