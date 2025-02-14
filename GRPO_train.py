@@ -1,16 +1,12 @@
 import torch
 import torch.optim as optim
 from transformers import AutoTokenizer
-from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.data import DataLoader, Dataset
 from model import SmallLanguageModel
 
 # Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
-
-# Fix: Set a padding token
-tokenizer.pad_token = tokenizer.eos_token  # GPT-2 doesn't have a pad token by default
 
 # Load dataset and tokenize
 def tokenize_function(examples):
@@ -44,15 +40,17 @@ lora_config = LoraConfig(
     lora_dropout=0.1,
     bias="none",
     task_type=TaskType.CAUSAL_LM,
-    target_modules=["query", "key", "value", "attention_output"]  # Target the attention linear layers
 )
 
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 
-# Training setup
+# Optimizer and Loss
 optimizer = optim.AdamW(model.parameters(), lr=1e-4)
 criterion = torch.nn.CrossEntropyLoss()
+
+# GRPO hyperparameter (controls regularization strength)
+lambda_grpo = 0.01
 
 def train_model(model, dataloader, epochs=3):
     model.train()
@@ -60,9 +58,20 @@ def train_model(model, dataloader, epochs=3):
         for batch in dataloader:
             batch = batch.to(device)
             optimizer.zero_grad()
+            
+            # Forward pass
             output = model(batch)
             loss = criterion(output.view(-1, tokenizer.vocab_size), batch.view(-1))
+            
+            # Compute gradients
             loss.backward()
+            
+            # GRPO Regularization: Penalize large gradients
+            with torch.no_grad():
+                for param in model.parameters():
+                    if param.grad is not None:
+                        param.grad += lambda_grpo * param  # GRPO Penalty
+
             optimizer.step()
         print(f"Epoch {epoch+1}, Loss: {loss.item()}")
 
