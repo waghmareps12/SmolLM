@@ -84,7 +84,57 @@ class ModelConfig:
         self.n_embd = n_embd
         self.dropout = dropout
         self.bias = bias
-
+def count_parameters(model):
+    """Count number of trainable parameters in the model"""
+    total = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    # Calculate parameters for each component
+    embedding_params = model.transformer.wte.weight.numel() + model.transformer.wpe.weight.numel()
+    
+    attention_params = 0
+    mlp_params = 0
+    layer_norm_params = 0
+    
+    for block in model.transformer.h:
+        # Attention parameters
+        attention_params += (
+            block.attn.c_attn.weight.numel() + 
+            (block.attn.c_attn.bias.numel() if block.attn.c_attn.bias is not None else 0) +
+            block.attn.c_proj.weight.numel() +
+            (block.attn.c_proj.bias.numel() if block.attn.c_proj.bias is not None else 0)
+        )
+        
+        # MLP parameters
+        mlp_params += (
+            block.mlp.c_fc.weight.numel() + 
+            (block.mlp.c_fc.bias.numel() if block.mlp.c_fc.bias is not None else 0) +
+            block.mlp.c_proj.weight.numel() +
+            (block.mlp.c_proj.bias.numel() if block.mlp.c_proj.bias is not None else 0)
+        )
+        
+        # Layer norm parameters
+        layer_norm_params += (
+            block.ln_1.weight.numel() + 
+            (block.ln_1.bias.numel() if block.ln_1.bias is not None else 0) +
+            block.ln_2.weight.numel() +
+            (block.ln_2.bias.numel() if block.ln_2.bias is not None else 0)
+        )
+    
+    # Final layer norm
+    layer_norm_params += (
+        model.transformer.ln_f.weight.numel() + 
+        (model.transformer.ln_f.bias.numel() if model.transformer.ln_f.bias is not None else 0)
+    )
+    
+    # Print detailed breakdown
+    print(f"\nParameter Count Breakdown:")
+    print(f"Embeddings: {embedding_params:,} parameters")
+    print(f"Attention Layers: {attention_params:,} parameters")
+    print(f"MLP Layers: {mlp_params:,} parameters")
+    print(f"Layer Normalization: {layer_norm_params:,} parameters")
+    print(f"Total: {total:,} parameters")
+    
+    return total
 class SmallLanguageModel(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -103,6 +153,18 @@ class SmallLanguageModel(nn.Module):
 
         # Initialize weights
         self.apply(self._init_weights)
+
+        print("\nModel Configuration:")
+
+        print(f"Layers: {config.n_layer}")
+
+        print(f"Heads: {config.n_head}")
+
+        print(f"Embedding Dimension: {config.n_embd}")
+
+        print(f"Context Window: {config.block_size}")
+
+        count_parameters(self)
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
