@@ -44,7 +44,7 @@ lora_config = LoraConfig(
     lora_dropout=0.1,
     bias="none",
     task_type=TaskType.CAUSAL_LM,
-    target_modules=["query", "key", "value", "attention_output"]  # Target the attention linear layers
+    target_modules=["qkv", "proj", "mlp.0", "mlp.2"]  # Target the main linear layers
 )
 
 model = get_peft_model(model, lora_config)

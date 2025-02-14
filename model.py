@@ -5,15 +5,14 @@ import math
 class TransformerBlock(nn.Module):
     def __init__(self, embed_size, heads, dropout, forward_expansion):
         super().__init__()
-        # Split attention into query, key, value projections
-        self.query = nn.Linear(embed_size, embed_size)
-        self.key = nn.Linear(embed_size, embed_size)
-        self.value = nn.Linear(embed_size, embed_size)
-        self.attention_output = nn.Linear(embed_size, embed_size)
+        # Use a single linear layer for QKV projection
+        self.qkv = nn.Linear(embed_size, 3 * embed_size)
+        self.proj = nn.Linear(embed_size, embed_size)
         
         self.norm1 = nn.LayerNorm(embed_size)
         self.norm2 = nn.LayerNorm(embed_size)
-        self.feed_forward = nn.Sequential(
+        
+        self.mlp = nn.Sequential(
             nn.Linear(embed_size, forward_expansion * embed_size),
             nn.GELU(),
             nn.Linear(forward_expansion * embed_size, embed_size),
@@ -26,10 +25,9 @@ class TransformerBlock(nn.Module):
         B, N, C = x.shape
         head_dim = C // self.heads
         
-        # Split heads
-        q = self.query(x).view(B, N, self.heads, head_dim).transpose(1, 2)
-        k = self.key(x).view(B, N, self.heads, head_dim).transpose(1, 2)
-        v = self.value(x).view(B, N, self.heads, head_dim).transpose(1, 2)
+        # QKV projection
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: t.view(B, N, self.heads, head_dim).transpose(1, 2), qkv)
         
         # Attention
         attn = (q @ k.transpose(-2, -1)) / math.sqrt(head_dim)
@@ -38,12 +36,12 @@ class TransformerBlock(nn.Module):
         
         # Combine heads
         out = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        out = self.attention_output(out)
+        out = self.proj(out)
         
-        # Rest of the forward pass
+        # FFN
         x = self.norm1(x + self.dropout(out))
-        forward = self.feed_forward(x)
-        return self.norm2(x + self.dropout(forward))
+        x = self.norm2(x + self.dropout(self.mlp(x)))
+        return x
 
 class SmallLanguageModel(nn.Module):
     def __init__(self, vocab_size, embed_size=512, num_layers=6, heads=8, dropout=0.1, forward_expansion=4):
